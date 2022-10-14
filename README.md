@@ -64,3 +64,41 @@
 ```
 # make install
 ```
+### nginx 종료
+```
+# nginx -s stop
+```
+
+#### nginx 스크립트
+ - https://www.nginx.com/nginx-wiki/build/dirhtml/start/topics/examples/initscripts/
+
+### systemd를 활용한 nginx 시스템 실행/중지
+ - ubuntu17.0 or centos7 이상
+ - 설정 안내 사이트: https://www.nginx.com/nginx-wiki/build/dirhtml/start/topics/examples/systemd/
+ - 먼저 /lib/systemd/system/nginx.service 경로에 파일을 만든다
+```
+# touch /lib/systemd/system/nginx.service
+```
+ - vim으로 스크립트를 붙여 넣는다
+```
+[Unit]
+Description=The NGINX HTTP and reverse proxy server
+After=syslog.target network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/run/nginx.pid
+ExecStartPre=/usr/sbin/nginx -t
+ExecStart=/usr/sbin/nginx
+ExecReload=/usr/sbin/nginx -s reload
+ExecStop=/bin/kill -s QUIT $MAINPID
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+ - 먼저 /lib/systemd/system/nginx.service 경로에 파일을 만든다파일
+ - 먼저 /lib/systemd/system/nginx.service 경로에 파일을 만든다
+ 
