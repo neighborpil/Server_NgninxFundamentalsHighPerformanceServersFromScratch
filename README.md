@@ -30,19 +30,34 @@
 # service nginx start
 ```
 
-#### 만약 인터넷에서 nginx source를 받아서 압축 풀어서 빌드해서     사용하려고 할때에 C 컴파일러가 없다면 인스톨 필요
- - ubuntu
+
+## 소스를 받아서 빌드하는 방법
+ - nginx.org에서 download탭에서 소스 주소를 복사한다
+
+![image](https://user-images.githubusercontent.com/22423285/195734411-49a9ff69-6569-4a11-9841-c0664b2c300b.png)
+
+ - ubuntu에서 wget으로 소스를 다운받고 그 폴더로 들어간다
 ```
-# apt-get install build-essential
+# cd
+# wget https://nginx.org/download/nginx-1.23.1.tar.gz
+# tar - zxvf nginx-1.23.1.tar.gz
+# cd nginx-1.23.1
 ```
- - centos
-```
-# yum groupinstall "Development Tools"
-```
- - 컴파일방법
+
+ - 소스를 다운 받았으므로 컴파일한다. 소스 폴더 내에서 설정 실행
 ```
 # ./configure
 ```
+ - 사용하려고 할때에 C 컴파일러가 없다면 인스톨 필요
+    + ubuntu
+```
+# apt-get install build-essential
+```
+    + centos
+```
+# yum groupinstall "Development Tools"
+```
+
  - 하다가 안될때에 dependency package를 설치해야 한다
     + ubuntu
 ```
@@ -52,7 +67,9 @@
 ```
 # yum install pcre pcre-devel zlib zlib-devel openssl openssl-devel
 ```
- - nginx 설정하기
+ - nginx 세부설정하여 다시 설정하기
+ - 하기전에 "./configure --help"로 사용가능 확인 가능
+    + https://nginx.org/en/docs/configure.html
 ```
 # ./configure --sbin-path=/usr/bin/nginx --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/erro.log --http-log-path=/var/log/nginx/access.log --with-pcre -pid-path=/var/run/nginx.pid --with-http_ssl_module
 ```
