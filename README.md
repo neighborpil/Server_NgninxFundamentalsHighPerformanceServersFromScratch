@@ -43,7 +43,6 @@
 # tar - zxvf nginx-1.23.1.tar.gz
 # cd nginx-1.23.1
 ```
-
  - 소스를 다운 받았으므로 컴파일한다. 소스 폴더 내에서 설정 실행
 ```
 # ./configure
@@ -53,7 +52,7 @@
 ```
 # apt-get install build-essential
 ```
-    + centos
+    + centos 
 ```
 # yum groupinstall "Development Tools"
 ```
