@@ -67,19 +67,36 @@
 # yum install pcre pcre-devel zlib zlib-devel openssl openssl-devel
 ```
  - nginx 세부설정하여 다시 설정하기
- - 하기전에 "./configure --help"로 사용가능 확인 가능
+ - 하기전에 "./configure --help"로 사용가능 확인 가능
     + https://nginx.org/en/docs/configure.html
 ```
-# ./configure --sbin-path=/usr/bin/nginx --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/erro.log --http-log-path=/var/log/nginx/access.log --with-pcre -pid-path=/var/run/nginx.pid --with-http_ssl_module
+# ./configure --sbin-path=/usr/bin/nginx --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --with-pcre --pid-path=/var/run/nginx.pid --with-http_ssl_module
 ```
- - 빌드하기
+ - 컴파일하기
 ```
 # make
 ```
- - 설치하고 기동하기
+ - 컴파일 된 파일을 설치하고 기동하기
 ```
 # make install
 ```
+ - 폴더 확인
+```
+# ll /etc/nginx
+```
+ - 버전 확인
+```
+# nginx -V
+```
+ - nginx 기동
+```
+# nginx
+```
+ - check process
+```
+# ps aux | grep nginx
+```
+
 ### nginx 종료
 ```
 # nginx -s stop
