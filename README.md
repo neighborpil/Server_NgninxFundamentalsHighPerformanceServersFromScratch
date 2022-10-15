@@ -112,7 +112,7 @@
 ```
 # touch /lib/systemd/system/nginx.service
 ```
- - vim으로 스크립트를 붙여 넣는다
+ - vim으로 스크립트를 붙여 넣고 저장(페이지에서 가져온거 경로 수정)
 ```
 [Unit]
 Description=The NGINX HTTP and reverse proxy server
@@ -121,10 +121,10 @@ Wants=network-online.target
 
 [Service]
 Type=forking
-PIDFile=/run/nginx.pid
-ExecStartPre=/usr/sbin/nginx -t
-ExecStart=/usr/sbin/nginx
-ExecReload=/usr/sbin/nginx -s reload
+PIDFile=/var/run/nginx.pid
+ExecStartPre=/usr/bin/nginx -t
+ExecStart=/usr/bin/nginx
+ExecReload=/usr/bin/nginx -s reload
 ExecStop=/bin/kill -s QUIT $MAINPID
 PrivateTmp=true
 
@@ -132,6 +132,71 @@ PrivateTmp=true
 WantedBy=multi-user.target
 ```
 
- - 먼저 /lib/systemd/system/nginx.service 경로에 파일을 만든다파일
- - 먼저 /lib/systemd/system/nginx.service 경로에 파일을 만든다
- 
+ - systemd로 실행
+```
+# systemctl start nginx
+```
+ - systemd로 상태 확인
+```
+# systemctl status nginx
+```
+ - systemd로 종료
+```
+# systemctl stop nginx
+```
+ - 리눅스 재부팅시 자동 실행되도록 설정
+```
+ - systemctl enable nginx
+```
+
+## 설정
+ - 설정파일: nginx.conf
+ - 위치: /etc/nginx/nginx.conf
+### 용어 정리
+ - Directive
+    + 파일에 저장된 설정
+    + Context의 모음으로 이루어져 있다.
+ - Context
+    + [이름] [설정] 으로 이루어져 있다
+    + [설정] scope와 같은 개념. 많으면 중괄호로 묶여져 있다
+
+
+### Virtual Host
+ - nginx기동 후 기본 페이지에 보여주는 것에서 내가 원하는 사이트를 기등하는 것
+ - 폴더를 하나 만든다
+```
+# ll /sites/demo
+```
+ - 그리고 설정 파일을 수정한다 (/etc/nginx/nginx.conf)
+ - 기존에것은 다 지우고 일단은 아래꺼 적어서 동작하는지 확인
+```
+events {}
+
+
+http {
+	server {
+		listen 80;
+		server_name 13.125.215.175;
+
+		# connect file system to uri from static requests
+		root /sites/demo;
+	}
+}
+```
+ - nginx의 바뀐 설정파일이 구동가능한지 확인
+```
+# nginx -t
+```
+ - nginx 재시작
+```
+# systemctl reload nginx
+```
+    
+    
+    
+    
+    
+    
+    
+    
+    
