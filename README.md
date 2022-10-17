@@ -353,9 +353,52 @@ http {
     + REGEX Match ~*
     + Prefix Match
     
+### Variables
+ - Build in variables
+   + https://nginx.org/en/docs/varindex.html
+ - 사용자 커스텀 변수
+```
+set $var 'something';
+```
     
-    
-    
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                location /inspect {
+                        return 200 "$host\n$uri\n$args";
+                }
+        }
+}
+```
+ - 파라미터 변수를 활용하고 싶다면 built-in변수를 쓴다
+    + $arg_파라미터명
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                location /inspect {
+                        return 200 "Name: $arg_name";
+                }
+        }
+}
+```
+
+
     
     
     
