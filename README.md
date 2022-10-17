@@ -192,7 +192,166 @@ http {
 # systemctl reload nginx
 ```
     
-    
+### CSS 잘 안될때
+ - mime타입이 제대로 안 되서 그럴 수 있음
+ - 아래의 명령어를 해보면 Content-Type이 text/plaind으로 되어 있음 
+```
+# curl -I http://11.1.1.1/style.css # header 요청만 받음
+```
+ - nginx.conf파일을 수정해야 함
+```
+events {}
+
+
+http {
+        types {
+                text/html html; # 이렇게 수동으로 설정해 줘도 된다
+                text/css css;
+        }
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+        }
+}
+```
+ - 하지만 /etc/nginx/mime.types폴더 안에 이미 대부분의 것들이 정의되어 있다. 따라서 include하면 된다
+```
+events {}
+
+
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+        }
+}
+
+```
+ - 설정 하고 리로드 해줘야 한다
+```
+# systemctl reload nginx
+```
+
+### Location Blocks
+ - 특정 URI 요청에 대한 리턴값을 지정할 수 있다
+ - nginx.conf의 http-server context내에 설정한다
+    + Prefix match: 해당하는 것으로 시작하는 것은 모두 리턴한다(아래에서 /greet /greeting /greet1)
+```
+events {}
+
+
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                location /greet {
+                        return 200 'Hello from Nginx "/greet" location';
+
+                }
+        }
+}
+```
+    + Exact match: =을 붙여준다
+    + Regex match: ~를 붙여준다
+    + Regex match insensitive: ~*를 붙여준다
+```
+events {}
+
+
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                # Prefix match
+                # location /greet {
+                #       return 200 'Hello from Nginx "/greet" location';
+                # }
+
+                # Exact match
+                # location = /greet {
+                #       return 200 'Hello from Nginx "/greet" location - Exact';
+                # }
+
+                # REGEX match case sensitive /greet1(O), /Greet1(X)
+                # location ~ /greet[0-9] {
+                #       return 200 'Hello from Nginx "/greet" location - Regex';
+                # }
+
+                # REGEX match case insensitive /greet1(O), /Greet1(O)
+                location ~* /greet[0-9] {
+                        return 200 'Hello from Nginx "/greet" location - Regex Insensitive';
+                }
+        }
+}
+```
+ - 표시순서
+    + 중복되는 규칙에서 정규식이 우선순위를 가진다.
+    + 중복되는 규칙에서 정규식보다 높은 우선순위를 가지고 싶다면 ^~를 붙여주면 된다
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                # Prefix match
+                # location /greet {
+                #       return 200 'Hello from Nginx "/greet" location';
+                # }
+
+                # Exact match
+                # location = /greet {
+                #       return 200 'Hello from Nginx "/greet" location - Exact';
+                # }
+
+                # REGEX match case sensitive /greet1(O), /Greet1(X)
+                # location ~ /greet[0-9] {
+                #       return 200 'Hello from Nginx "/greet" location - Regex';
+                # }
+
+                # REGEX match case insensitive /greet1(O), /Greet1(O)
+                location ~* /greet[0-9] {
+                        return 200 'Hello from Nginx "/greet" location - Regex Insensitive';
+                }
+
+                # Prefix match
+                location ^~ /greet2 {
+                        return 200 'Hello from Nginx "/greet" location';
+                }
+        }
+}
+
+```
+ - 표시순서 우선순위 순서
+    + Exact Match: =
+    + Preferential Prefix Match ^~
+    + REGEX Match ~*
+    + Prefix Match
     
     
     
