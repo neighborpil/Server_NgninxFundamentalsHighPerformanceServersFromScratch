@@ -567,4 +567,75 @@ http {
 
 ```
     
-    
+### try_files path1 path2 final;
+ - 먼저 path1을 호출하고 없으면 path2를 호출한다
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                try_files /thumb.png /greet;
+
+
+                location /greet{
+                        return 200 "Hello User";
+                }
+        }
+}
+```
+ - $uri변수를 붙이면 있는것은 그냥 사용한다. 없으면 순차적으로 다음것을 호출한다
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                try_files $uri /cat.png /greet;
+
+
+                location /greet{
+                        return 200 "Hello User";
+                }
+        }
+}
+```
+ - 없으면 404에러를 rewrite가능하다
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                try_files $uri /cat.png /greet /friendly_404;
+
+                location /friendly_404 {
+                        return 404 "Sorry, that file could not be found";
+                }
+
+                location /greet{
+                        return 200 "Hello User";
+                }
+        }
+}
+```
+
+
+
+
+
