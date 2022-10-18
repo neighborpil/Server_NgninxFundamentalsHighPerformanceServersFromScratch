@@ -495,7 +495,57 @@ http {
         }
 }
 ```
-     
+     + 2개의 rewrite가 있을 때에는 둘다 일어난다
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                rewrite ^/user/(\w+) /greet/$1; # first move to /greet/john
+                rewrite ^/greet/john /thumb.png; # and then move to thumb.png again. Two rewrites will occure step by step.
+
+                location /greet{
+                        return 200 "Hello User";
+                }
+
+                location = /greet/john {
+                        return 200 "Hello John";
+                }
+        }
+}                                                                                                                                    
+```
+     + If I put the "last keyword" at the end of the rewrite, then rewrite chain will stop to proceed.
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                rewrite ^/user/(\w+) /greet/$1 last; # break the rewrite chain
+                rewrite ^/greet/john /thumb.png;
+
+                location /greet{
+                        return 200 "Hello User";
+                }
+
+                location = /greet/john {
+                        return 200 "Hello John";
+                }
+        }
+}
+```
+
  - return
     + return state 가 300번때이면 경로를 바꿔버린다. 경로 자체가 바뀐다(/logo -> /thumb.png)
 ```
