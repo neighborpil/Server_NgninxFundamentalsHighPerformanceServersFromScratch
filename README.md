@@ -397,8 +397,124 @@ http {
         }
 }
 ```
+### if statement 사용
+ - static apikey 예시
+```
+http {
+        include mime.types;
 
+        server {
+                listen 80;
+                server_name 13.125.215.175;
 
-    
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                # Check static api key
+                if ( $arg_apikey != 1234) {
+                        return 401 "Incorrect API Key";
+                }
+
+                location /inspect {
+                        return 200 "Name: $arg_name";
+                }
+        }
+}
+```
+ - 화요일인지 체크
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                # Check static api key
+                set $weekend 'No';
+
+                # check if weekend
+                if ( $date_local ~ 'Tuesday' ) {
+                        set $weekend 'Yes';
+                }
+
+                location /is_weekend {
+                        return 200 $weekend;
+                }
+        }
+}
+```
+ 
+### 경로 분기
+ - rewrite
+    + URI 경로는 바뀌지 않는다.
+    + user이라는 경로로 시작하면 메시지 반환 예제
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                rewrite ^/user/\w+ /greet;
+
+                location /greet{
+                        return 200 "Hello User";
+                }
+        }
+}
+```
+     + John만 특별한 경로 표시
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                rewrite ^/user/(\w+) /greet/$1;
+
+                location /greet{
+                        return 200 "Hello User";
+                }
+
+                location = /greet/john {
+                        return 200 "Hello John";
+                }
+        }
+}
+```
+     
+ - return
+    + return state 가 300번때이면 경로를 바꿔버린다. 경로 자체가 바뀐다(/logo -> /thumb.png)
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+                
+                location /logo {
+                        return 307 /thumb.png;
+                }
+        }
+}
+
+```
     
     
