@@ -635,7 +635,68 @@ http {
 }
 ```
 
+## Logging
+ - 서버 생성할 때에 로그 폴더를 따로 지장했다
+    + --error-log-path=/var/log/nginx/error.log -- http-log-path=/var/log/nginx/access.log
+    + 로그 저장 폴더: /var/log/nginx
+ - Error log
+    + 보통 404를 에러로그라고 생각하는데 에러로그 아니다. 안찍힘 
+ - Access log
+ - 테스트 전에 먼저 로그를 날려준다
+```
+# cd /var/log/nginx
+# echo '' > access.log
+# echo '' > error.log
+```
+ - 만약 nginx.conf파일에서 syntex 오류가 있고, systemctl reload nginx 했을때 오류가 있다면 error.log에 찍힌다
+ - 특정 로그를 만들려면 nginx.conf파일에 기록해야 한다
+    + 시스템을 재시작하면 자동으로 secure.access.log라는 파일을 만든다
+    + 2개 이상도 가능하다
+    + 아래 예제는 access_log를 2개 찍는것
+```
+http {
+        include mime.types;
 
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                location /secure {
+                        access_log /var/log/nginx/secure.access.log;
+			access_log /var/log/nginx/access.log;
+                        return 200 "Welcome to secure area.";
+                }
+
+        }
+}
+```
+
+ - 로그를 안찍을 수도 있다
+    + 만약 트래픽이 많으면 끈다
+    + off 키워드 사용
+```
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                location /secure {
+                        access_log off;
+                        return 200 "Welcome to secure area.";
+                }
+
+        }
+}
+```
+ - 압축 등 옵션이 많으니 찾아서 하면 된다
 
 
 
