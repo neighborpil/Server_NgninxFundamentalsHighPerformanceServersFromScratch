@@ -154,11 +154,10 @@ WantedBy=multi-user.target
  - 위치: /etc/nginx/nginx.conf
 ### 용어 정리
  - Directive
-    + 파일에 저장된 설정
-    + Context의 모음으로 이루어져 있다.
+    + nginx의 설정은 directive의 모음으로 이루어져 있다.
+    + name value의 형식을 가진다. value는 {}로 묶여진 block이 될 수도 있다.
  - Context
-    + [이름] [설정] 으로 이루어져 있다
-    + [설정] scope와 같은 개념. 많으면 중괄호로 묶여져 있다
+    + directive value의 block으로 묶여진 부분을 뜻한다.
 
 
 ### Virtual Host
