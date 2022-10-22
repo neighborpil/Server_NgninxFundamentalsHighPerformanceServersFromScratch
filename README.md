@@ -880,6 +880,294 @@ http {
 #### ※ FastCGI: html같은 프로토콜인데 동적인 데이터를 전달할때 스레드풀을 사용하여 만들어져 있는 스레드를 사용하여 cgi보다 빠르게 동작한다.
 
 
+### Worker Porcess
+ - "systemctl status nginx"해보면 프로세스가 master, worker2개가 나온다
+ - master: acutual nginx server. spawn worker processes
+ - worker: listen for and respond to client request
+    + default number: 1
+    + worker_process 다이렉티브로 개수를 바꿀 수 있다
+    + 하나의 cpu core수만큼 worker process 개수를 맞춰주는 것이 좋다
+    + cpu가 하나의 코어인데 2개의 worker processes를 기동하면 각각 50%만큼의 퍼포먼스를 보이고, 그만큼 더 자원을 소모한다
+    + nginx에는 비동기로 동작하기 때문에 하나의 cpu에 하나의 worker만 있으면 된다
+    + cpu수는 lscpu 또는 nproc 리눅스 명령어로 확인 가능하다
+```
+ user www-data;
+
+worker_processes 2;
+
+events {}
+
+
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                index index.php index.html;
+
+                location / {
+                        try_files $uri $uri/ =404;
+                }
+
+                location ~\.php$ {
+                        # Pass php requests to the php-fpm service (fastcgi)
+                        include fastcgi.conf;
+                        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+                }
+
+        }
+}
+```
+ - auto로 하면 알아서 해준다
+```
+user www-data;
+
+worker_processes auto;
+
+events {}
+
+
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                index index.php index.html;
+
+                location / {
+                        try_files $uri $uri/ =404;
+                }
+
+                location ~\.php$ {
+                        # Pass php requests to the php-fpm service (fastcgi)
+                        include fastcgi.conf;
+                        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+                }
+
+        }
+}
+```
+
+#### Event directive
+ - worker_connections를 통해서 동시에 파일에 접근 가능한 수를 설정한다
+ - 리눅스 명렁어 ulimit -n의 숫자만큼 동시접근 가능하다
+```
+user www-data;
+
+worker_processes auto;
+
+events {
+        worker_connections 1024;
+}
+
+
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                index index.php index.html;
+
+                location / {
+                        try_files $uri $uri/ =404;
+                }
+
+                location ~\.php$ {
+                        # Pass php requests to the php-fpm service (fastcgi)
+                        include fastcgi.conf;
+                        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+                }
+
+        }
+}
+```
+
+#### ❉ 동시접근 커넥션 가능 수
+ - worker_processes * worker_connections
+
+
+### pid 교체
+```
+user www-data;
+
+pid /var/run/new_nginx.pid;
+
+worker_processes auto;
+
+events {
+        worker_connections 1024;
+}
+
+
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                index index.php index.html;
+
+                location / {
+                        try_files $uri $uri/ =404;
+                }
+
+                location ~\.php$ {
+                        # Pass php requests to the php-fpm service (fastcgi)
+                        include fastcgi.conf;
+                        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+                }
+
+        }
+}
+```
+
+### Buffer and Timeout
+ - sample configuration
+ - buffer directives
+    + 100: 100 bytes
+    + 10k: 10k bytes
+    + 10m: 10m bytes
+ - timeout directives
+    + 30: millisecondes
+    + 30s: 30 seconds
+    + 30m: 30 minutes
+    + 30h: 30 hours
+    + 30d: 30 days
+```
+user www-data;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  # Buffer size for POST submissions
+  client_body_buffer_size 10K; # POST 데이터 처리 버퍼 사이즈
+  client_max_body_size 8m; # 8메가를 넘는 POST request를 받지 마라, 413에러 반환
+
+  # Buffer size for Headers
+  client_header_buffer_size 1k; # 1k를 넘는 http header requeest를 받지 마라
+
+  # Max time to receive client headers/body
+  client_body_timeout 12; # 클라이언트 바디 타임아웃
+  client_header_timeout 12; # 클라이언트 헤더 타임아웃
+
+  # Max time to keep a connection open for
+  keepalive_timeout 15;
+
+  # Max time for the client accept/receive a response
+  send_timeout 10; # client가 응답을 받지 않을 때 타임아웃
+
+  # Skip buffering for static files
+  sendfile on; # image css 등의 static file을 읽을 때에는 buffer를 거치지 말고 다이렉트로 반환하라. static 설정으로 중요
+
+  # Optimise sendfile packets
+  tcp_nopush on; # 클라이언트에 데이타 보낼때 데이터 패킷의 사이즈를 조절하라. static 설정으로 중요
+
+  server {
+
+    listen 80;
+    server_name 167.99.93.26;
+
+    root /sites/demo;
+
+    index index.php index.html;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php7.1-fpm.sock;
+    }
+
+  }
+}
+```
+
+### Adding Dynamic Modules
+ - 현재 설치된 nginx의 버전 및 상세 설정은 아래의 커맨드로 확인 가능하다
+```
+# nginx -V
+```
+ - nginx가 설치된 폴더로 간다
+```
+# cd /home/ubuntu/nginx-1.23.1
+```
+ - configure help를 통하여 현재 사용가능한 모듈을 확인한다
+```
+# ./configure --help
+```
+ - 몇몇 모듈에 dynamic이라고 붙은것이 확인 가능하다
+```
+--with-http_perl_module            enable ngx_http_perl_module
+  --with-http_perl_module=dynamic    enable dynamic ngx_http_perl_module
+  --with-perl_modules_path=PATH      set Perl modules path
+  --with-perl=PATH                   set perl binary pathname
+
+  --http-log-path=PATH               set http access log pathname
+  --http-client-body-temp-path=PATH  set path to store
+                                     http client request body temporary files
+  --http-proxy-temp-path=PATH        set path to store
+                                     http proxy temporary files
+  --http-fastcgi-temp-path=PATH      set path to store
+                                     http fastcgi temporary files
+  --http-uwsgi-temp-path=PATH        set path to store
+                                     http uwsgi temporary files
+  --http-scgi-temp-path=PATH         set path to store
+```
+ - dynamic module만 필터링 하기
+```
+# ./configure --help | grep dynamic
+```
+ - 그런뒤 ./configure 설정에서 기존에꺼 복사하고 추가할 설정을 붙여 넣는다
+```
+# ./configure --sbin-path=/usr/bin/nginx --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --with-pcre --pid-path=/var/run/nginx.pid --with-http_ssl_module --with-http_image_filter_module=dynamic
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
