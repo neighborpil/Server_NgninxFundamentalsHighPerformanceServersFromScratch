@@ -1267,7 +1267,8 @@ http {
 # nginx -t
 # systemctl reload nginx
 ```
-
+ - 브라우저 가서 이미지 로드하면 거꾸로 보인다
+    + http://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com/thumb.png
 
 
 
