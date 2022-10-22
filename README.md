@@ -841,6 +841,42 @@ root       43131  0.0  0.2   7004  2192 pts/1    S+   00:26   0:00 grep --color=
 
  - user를 동일하게 설정
     + nginx.conf에서 user를 php에 맞춰준다.
+```
+user www-data;
+
+events {}
+
+
+http {
+        include mime.types;
+
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                index index.php index.html;
+
+                location / {
+                        try_files $uri $uri/ =404;
+                }
+
+                location ~\.php$ {
+                        # Pass php requests to the php-fpm service (fastcgi)
+                        include fastcgi.conf;
+                        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+                }
+
+        }
+}
+```
+ - index.php 만들기
+```
+# echo '<h1>Date: <?php echo date("l jS F"); ?></h1>' > /sites/demo/index.php
+```
+
 #### ※ FastCGI: html같은 프로토콜인데 동적인 데이터를 전달할때 스레드풀을 사용하여 만들어져 있는 스레드를 사용하여 cgi보다 빠르게 동작한다.
 
 
