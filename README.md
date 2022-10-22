@@ -1113,6 +1113,9 @@ http {
 
 ### Adding Dynamic Modules
  - 현재 설치된 nginx의 버전 및 상세 설정은 아래의 커맨드로 확인 가능하다
+ - 이미지 필터 설치
+    + https://nginx.org/en/docs/http/ngx_http_image_filter_module.html
+    + 이미지 변환해서 
 ```
 # nginx -V
 ```
@@ -1150,10 +1153,120 @@ http {
 ```
 # ./configure --sbin-path=/usr/bin/nginx --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --with-pcre --pid-path=/var/run/nginx.pid --with-http_ssl_module --with-http_image_filter_module=dynamic
 ```
+ - 에러 남: the HTTP image filter module requires the GD library.
+    + 리눅스 GD 모듈 인스톨
+```
+# apt-get install libgd-dev
+```
+    + 그 뒤 위의 ./configure 명령어를 다시 실행하면 된다
+ - 컴파일
+```
+# make
+```
+ - 설치
+```
+# make install
+```
+ - 정상설치 확인
+```
+# nginx -V
+```
+ - 시스템 재실행
+```
+# systemctl reload nginx
+```
+ - 스테이터스 확인
+```
+# systemctl status nginx
+```
+ - 모듈 사용위한 conf파일 설정
+    + dynamic 모듈이기 때문에 nginx.conf설정만으로 안된다. 오류남
+```
+  server {
 
+    ...
 
+    location = /thumb.png {
+            image_filter rotate 180;
+    }
+  }
 
+```
+ - 모듈 확인
+```
+# ll /etc/nginx/modules
+```
+ - 모듀을 main context에 추가
+```
+user www-data;
 
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+load_module modules/ngx_http_image_filter_module.so;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  # Buffer size for POST submissions
+  client_body_buffer_size 10K;
+  client_max_body_size 8m;
+
+  # Buffer size for Headers
+  client_header_buffer_size 1k;
+
+  # Max time to receive client headers/body
+  client_body_timeout 12;
+  client_header_timeout 12;
+
+  # Max time to keep a connection open for
+  keepalive_timeout 15;
+
+  # Max time for the client accept/receive a response
+  send_timeout 10;
+
+  # Skip buffering for static files
+  sendfile on;
+
+  # Optimise sendfile packets
+  tcp_nopush on;
+
+  server {
+
+    listen 80;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.php index.html;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+    location = /thumb.png {
+            image_filter rotate 180;
+    }
+  }
+}
+```
+ - 재시작
+```
+# nginx -t
+# systemctl reload nginx
+```
 
 
 
