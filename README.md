@@ -156,6 +156,9 @@ WantedBy=multi-user.target
  - Directive
     + nginx의 설정은 directive의 모음으로 이루어져 있다.
     + name value의 형식을 가진다. value는 {}로 묶여진 block이 될 수도 있다.
+    + 상위에 설정된 directive는 하위의 context에 영향을 미친다.
+    + context에서 재정의 가능
+    + 하위에 
  - Context
     + directive value의 block으로 묶여진 부분을 뜻한다.
 
@@ -756,3 +759,28 @@ http {
   }
 }
 ```
+
+## PHP Processing
+ - installing php
+```
+# apt-get update
+# apt-get install php-fpm # fpm keyword installs move latest stable release of php
+# systemctl list-units | grep php
+# systemctl status php8.1-fpm
+```
+
+### Setting index directive
+ - 루트경로로 요청이 왔을 때 보여줄 페이지의 위치를 결정한다.
+
+
+
+
+
+
+
+
+
+
+
+
+
