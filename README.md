@@ -764,14 +764,84 @@ http {
  - installing php
 ```
 # apt-get update
-# apt-get install php-fpm # fpm keyword installs move latest stable release of php
+# apt-get install php-fpm # fpm keyword installs move latest stable release of php- fastcgi protocol
 # systemctl list-units | grep php
 # systemctl status php8.1-fpm
 ```
 
 ### Setting index directive
  - 루트경로로 요청이 왔을 때 보여줄 페이지의 위치를 결정한다.
+ - fastcgi를 사용하여 설정. 해당 설정은 존재해서 include해서 사용
+ - fastcgi에 대한 nginx설정은 /etc/nginx/fastcgi.conf
+ - 먼저 php의 fpm소켓에 대한 파일을 찾는것이 필요하다
+```
+# find / -name *fpm.sock
+```
+ - 설정하기
+```
+http {
+        include mime.types;
 
+        server {
+                listen 80;
+                server_name 13.125.215.175;
+
+                # connect file system to uri from static requests
+                root /sites/demo;
+
+                index index.php index.html;
+
+                location / {
+                        try_files $uri $uri/ =404;
+                }
+
+                location ~\.php$ {
+                        # Pass php requests to the php-fpm service (fastcgi)
+                        include fastcgi.conf;
+                        fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+                }
+
+        }
+}
+```
+ - 이후 php파일을 임시로 만들어 준다
+```
+# echo '<?php phpinfo(); ?>' > /sites/demo/info.php
+```
+ - 브라우저로 가서 ip를 치면 그냥 기존의 static 페이지가 표시된다.
+    + 이는 현재 "index index.php index.html" directive를 통하여 index.php를 찾았지만 아직 안만들어서 index.html을 표시해서 그렇다
+ - 13.125.215.xxx/info.php를 친다
+    + 502 bad gateway가 뜬다
+    + 에러 로그를 통하여 문제가 먼지 파악한다
+```
+# tail -n 1 /var/log/nginx/error.log
+```
+   + 오류 이유: Permission error
+```
+2022/10/22 00:21:00 [crit] 43115#0: *5 connect() to unix:/run/php/php8.1-fpm.sock failed (13: Permission denied) while connecting to upstream, client: 106.102.128.150, server: 13.125.215.175, request: "GET /info.php HTTP/1.1", upstream: "fastcgi://unix:/run/php/php8.1-fpm.sock:", host: "13.125.215.175"
+```
+ - process 확인
+    + 확인을 해보면 nginx의 user와 php의 user가 달라서 그렇다
+```
+# ps aux | grep nginx
+# ps aux | grep php
+```
+   + 결과
+```
+root@ip-172-31-7-40:/home/ubuntu# ps aux | grep nginx
+root       42932  0.0  0.3   9904  3060 ?        Ss   00:01   0:00 nginx: master process /usr/bin/nginx
+nobody     43115  0.0  0.3  10440  3428 ?        S    00:18   0:00 nginx: worker process
+root       43129  0.0  0.2   7004  2196 pts/1    S+   00:25   0:00 grep --color=auto nginx
+root@ip-172-31-7-40:/home/ubuntu# ps aux | grep php
+root       42780  0.0  1.9 202684 18884 ?        Ss   00:00   0:00 php-fpm: master process (/etc/php/8.1/fpm/php-fpm.conf)
+www-data   42781  0.0  0.7 203156  7036 ?        S    00:00   0:00 php-fpm: pool www
+www-data   42782  0.0  0.7 203156  7036 ?        S    00:00   0:00 php-fpm: pool www
+root       43131  0.0  0.2   7004  2192 pts/1    S+   00:26   0:00 grep --color=auto php
+```
+
+ - user를 동일하게 설정
+    + nginx.conf에서 user를 php에 맞춰준다.
+#### ※ FastCGI: html같은 프로토콜인데 동적인 데이터를 전달할때 스레드풀을 사용하여 만들어져 있는 스레드를 사용하여 cgi보다 빠르게 동작한다.
 
 
 
