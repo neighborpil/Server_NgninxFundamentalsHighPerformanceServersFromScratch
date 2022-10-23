@@ -1271,6 +1271,160 @@ http {
     + http://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com/thumb.png
 
 
+## Performance
+
+### Headers & Expires
+ - 이미지등은 잘 바뀌지 않기 때문에 캐싱 기간을 반복하여 해당 기간 내에 반복되는 요청을 브라우저 캐싱으로 대체할 수 있다
+ - nginx.conf에서 바꿈
+ - 임의의 헤더 추가하기
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server {
+
+    listen 80;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.php index.html;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+    location = /thumb.png {
+            add_header my_header "Hello World!"; # 헤더추가
+    }
+  }
+}
+```
+ - 시스테 재시작
+```
+# systemctl reload nginx
+```
+ - curl로 헤더만 받아본다
+```
+# curl -I http://13.125.215.175/thumb.png
+```
+ - 결과값
+```
+HTTP/1.1 200 OK
+Server: nginx/1.23.1
+Date: Sun, 23 Oct 2022 04:34:22 GMT
+Content-Type: image/png
+Content-Length: 12627
+Last-Modified: Sat, 15 Oct 2022 00:20:13 GMT
+Connection: keep-alive
+ETag: "6349fcbd-3153"
+my_header: Hello World! # 추가된 헤더
+Accept-Ranges: bytes
+````
+ - 캐시 컨트롤 헤더 추가하기
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server {
+
+    listen 80;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.php index.html;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+    location = /thumb.png {
+            add_header Cache-Control public; # declare that this request will use cache control
+            add_header Pragma public; # older version of cache control header
+            add_header Vary Accept-Encoding; # except encoding response can very based on value of request header
+            expires 1M; # 1 month
+
+    }
+  }
+}
+```
+ - 재시작
+```
+# systemctl reload nginx
+```
+ - 호출
+```
+# curl -I http://13.125.215.175/thumb.png
+```
+ - 결과
+```
+HTTP/1.1 200 OK
+Server: nginx/1.23.1
+Date: Sun, 23 Oct 2022 04:41:26 GMT
+Content-Type: image/png
+Content-Length: 12627
+Last-Modified: Sat, 15 Oct 2022 00:20:13 GMT
+Connection: keep-alive
+ETag: "6349fcbd-3153"
+Expires: Tue, 22 Nov 2022 04:41:26 GMT # 만료기간 한달
+Cache-Control: max-age=2592000 # 캐시컨트롤헤더 seconds of 1 month
+Cache-Control: public # 캐시컨트롤헤더
+Pragma: public # 옛날 캐시컨트롤 헤더
+Vary: Accept-Encoding
+Accept-Ranges: bytes
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
