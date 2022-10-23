@@ -1409,6 +1409,80 @@ Vary: Accept-Encoding
 Accept-Ranges: bytes
 ```
 
+ - 주소 regex로 변경
+    + css, js, jpg, png는 캐싱
+    + 로그도 찍지 않는다
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server {
+
+    listen 80;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.php index.html;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+    location ~* \.(css|js|jpg|png)$ {
+            access_log off;
+            add_header Cache-Control public; # declare that this request will use cache control
+            add_header Pragma public; # older version of cache control header
+            add_header Vary Accept-Encoding; # except encoding response can very based on value of request header
+            expires 1M; # 1 month
+
+    }
+  }
+}
+
+```
+ - 재시작
+```
+# systemctl reload nginx
+```
+ - 호출
+```
+# curl -I http://13.125.215.175/style.css
+```
+ - 결과
+```
+HTTP/1.1 200 OK
+Server: nginx/1.23.1
+Date: Sun, 23 Oct 2022 05:01:31 GMT
+Content-Type: text/css
+Content-Length: 980
+Last-Modified: Sat, 15 Oct 2022 00:20:13 GMT
+Connection: keep-alive
+ETag: "6349fcbd-3d4"
+Expires: Tue, 22 Nov 2022 05:01:31 GMT
+Cache-Control: max-age=2592000
+Cache-Control: public
+Pragma: public
+Vary: Accept-Encoding
+Accept-Ranges: bytes
+```
 
 
 
