@@ -1484,30 +1484,400 @@ Vary: Accept-Encoding
 Accept-Ranges: bytes
 ```
 
+### gzip
+ - compress static resources
+ - css같은 것을 압축해서 보낸다. 브라우저가 압축 풀어서 사용
+ - 압축 레벨은 0~9까지 있다
+ - 하지만 4이후로는 크게 용량이 줄어들지 않으므로, 보통 3~4로 설정한다
+ - 설정
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  gzip on; # 압축 켜기
+  gzip_comp_level 3; # 압축레벨 3
+
+  gzip_types text/css; # css 압축
+  gzip_types text/javascript; # javascirpt 
+
+  server {
+
+    listen 80;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.php index.html;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+    location ~* \.(css|js|jpg|png)$ {
+            access_log off;
+            add_header Cache-Control public; # declare that this request will use cache control
+            add_header Pragma public; # older version of cache control header
+            add_header Vary Accept-Encoding; # except encoding response can very based on value of request header
+            expires 1M; # 1 month
+
+    }
+  }
+}
+
+```
+
+ - 시스템 재시작
+```
+# systemctl reload nginx
+```
+ - 헤더에 인코딩 받는다고 선언하고 헤더만 받기
+```
+# curl -I -H "Accept-Encoding: gzip, deflate" http://11.1.1.1/style.css
+```
+ - 내용 확인
+```
+HTTP/1.1 200 OK
+Server: nginx/1.23.1
+Date: Tue, 25 Oct 2022 14:29:47 GMT
+Content-Type: text/css
+Last-Modified: Sat, 15 Oct 2022 00:20:13 GMT
+Connection: keep-alive
+ETag: W/"6349fcbd-3d4"
+Expires: Thu, 24 Nov 2022 14:29:47 GMT
+Cache-Control: max-age=2592000
+Cache-Control: public
+Pragma: public
+Vary: Accept-Encoding
+Content-Encoding: gzip # 압축 허용
+```
+ - 헤더 + 바디 받기
+```
+# curl -H "Accept-Encoding: gzip, deflate" http://11.1.1.1/style.css
+```
+ - 바디 받은 내용
+```
+Warning: Binary output can mess up your terminal. Use "--output -" to tell 
+Warning: curl to output it to your terminal anyway, or consider "--output 
+Warning: <FILE>" to save to a file.
+```
+ - 용량 비교( 980 => 487)
+```
+root@ip-172-31-7-40:/home/ubuntu# curl http://13.125.215.175/style.css > style.css
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   980  100   980    0     0    97k      0 --:--:-- --:--:-- --:--:--  106k
+root@ip-172-31-7-40:/home/ubuntu# curl -H "Accept-Encoding: gzip, deflate" http://13.125.215.175/style.css > style.min.css
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   487    0   487    0     0  47820      0 --:--:-- --:--:-- --:--:-- 48700
+```
+
+### Fast CGI Cache
+ - micro cache:는 php통해서 db갔다온 결과를 캐싱해놓는것
+ - 결과를 static 데이터 반환하듯이 캐시된 데이터를 반환
+ - 예제에서는 fastcgi를 통해서 micro cache 구현
+ - fastcgi_cache_path
+    + levels: 하위 경로의 트리구조 수 
+ - fastcgi_cache_key
+    + 아래의 구조에 대하여 캐싱함
+#### ※ 대부분의 주소 구조, cache entiry
+
+$scheme		$request_method	$host		$request_uri
+https://	GET		domain.com	/blog/article
+
+ - 설정
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
 
 
+  # Configure micro cache (fastcgi), 캐싱 설정
+  fastcgi_cache_path /tmp/nginx_cache levels=1:2 keys_zone=ZONE_1:100m inactive=60m;
+  fastcgi_cache_key "$scheme$request_method$host$request_uri";
 
 
+  server {
+
+    listen 80;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.php index.html;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+
+      # Enable cache, 캐싱 허용
+      fastcgi_cache ZONE_1;
+      fastcgi_cache_valid 200 60m;
+      fastcgi_cache_valid 404 10m;
+    }
+
+  }
+}
+```
+ - 캐싱성능 테스트
+    + apache bench로 테스트 가능
+    + 설치 ubuntu
+```
+# apt-get install apache2-utils
+```
+    + 설치 centos
+```
+# yum install httpd-tools
+```
+ - 벤치툴 동작하는지 확인
+```
+# ab
+```
+ - 접속 체크
+```
+curl http://13.125.215.175
+```
+ - 100개의 접속을 10개씩 동시에 진행
+```
+# ab -n 100 -c 10 http://13.125.215.175/
+```
+ - 결과
+```
+This is ApacheBench, Version 2.3 <$Revision: 1879490 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking 13.125.215.175 (be patient).....done
 
 
+Server Software:        nginx/1.23.1
+Server Hostname:        13.125.215.175
+Server Port:            80
+
+Document Path:          /
+Document Length:        36 bytes
+
+Concurrency Level:      10
+Time taken for tests:   0.078 seconds
+Complete requests:      100
+Failed requests:        0
+Total transferred:      17300 bytes
+HTML transferred:       3600 bytes
+Requests per second:    1274.26 [#/sec] (mean) # 초당 몇번의 request를 했는지
+Time per request:       7.848 [ms] (mean) # 하나의 request가 응답 받는데 얼마나 거렸는지
+Time per request:       0.785 [ms] (mean, across all concurrent requests)
+Transfer rate:          215.28 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    3   2.9      1       8
+Processing:     1    4   3.6      2      16
+Waiting:        0    4   3.5      2      16
+Total:          1    8   5.2      8      22
+
+Percentage of the requests served within a certain time (ms)
+  50%      8
+  66%      8
+  75%      9
+  80%     14
+  90%     15
+  95%     16
+  98%     22
+  99%     22
+ 100%     22 (longest request)
 
 
+```
+ - 인덱스 파일 변경. 호출될 때마다 1초
+```
+<?php sleep(1); ?>
+<h1>Date: <?php echo date("l jS F"); ?></h1>
+```
+ - 다시 다중 호출
+```
+# ab -n 100 -c 10 http://13.125.215.175/
+```
+ - upstream_cache_status
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
 
 
+  # Configure micro cache (fastcgi)
+  fastcgi_cache_path /tmp/nginx_cache levels=1:2 keys_zone=ZONE_1:100m inactive=60m;
+  fastcgi_cache_key "$scheme$request_method$host$request_uri";
+  add_header X-Cache $upstream_cache_status; # 헤더에 추가
+
+  server {
+
+    listen 80;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.php index.html;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+
+      # Enable cache
+      fastcgi_cache ZONE_1;
+      fastcgi_cache_valid 200 60m;
+      fastcgi_cache_valid 404 10m;
+    }
+
+  }
+}
+
+```
+
+ - curl로 페이지 호출
+```
+root@ip-172-31-7-40:/home/ubuntu# curl -I  http://13.125.215.175/
+HTTP/1.1 200 OK
+Server: nginx/1.23.1
+Date: Tue, 25 Oct 2022 15:05:51 GMT
+Content-Type: text/html; charset=UTF-8
+Connection: keep-alive
+X-Cache: HIT # HIT이면 캐시된 결과
+```
+ - 캐시된 결과 아니면 헤더 바뀜
+```
+root@ip-172-31-7-40:/home/ubuntu# curl -I  http://13.125.215.175/index.php
+HTTP/1.1 200 OK
+Server: nginx/1.23.1
+Date: Tue, 25 Oct 2022 15:07:04 GMT
+Content-Type: text/html; charset=UTF-8
+Connection: keep-alive
+X-Cache: MISS # 캐시된 결과가 아님
+```
+
+#### Cache exception
+ - 캐싱예외 등록
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
 
 
+  # Configure micro cache (fastcgi)
+  fastcgi_cache_path /tmp/nginx_cache levels=1:2 keys_zone=ZONE_1:100m inactive=60m;
+  fastcgi_cache_key "$scheme$request_method$host$request_uri";
+  add_header X-Cache $upstream_cache_status;
 
 
+  server {
 
+    listen 80;
+    server_name 13.125.215.175;
 
+    root /sites/demo;
 
+    index index.php index.html;
 
+    # Cache by defualt
+    set $no_cache 0;
 
+    # check for cache bypass, 파라미터에 skipcache가 1이면 캐싱 안함
+    if ($arg_skipcache = 1) { 
+            set $no_cache 1;
+    }
 
+    location / {
+      try_files $uri $uri/ =404;
+    }
 
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
 
+      # Enable cache
+      fastcgi_cache ZONE_1;
+      fastcgi_cache_valid 200 60m;
+      fastcgi_cache_valid 404 10m;
+      fastcgi_cache_bypass $no_cache; # 캐싱안함
+      fastcgi_no_cache $no_cache; # 캐싱안함
+    }
 
-
+  }
+}
+```
+ - 테스트
+```
+root@ip-172-31-7-40:/home/ubuntu# curl -I  http://13.125.215.175/?skipcache=1
+HTTP/1.1 200 OK
+Server: nginx/1.23.1
+Date: Tue, 25 Oct 2022 15:13:00 GMT
+Content-Type: text/html; charset=UTF-8
+Connection: keep-alive
+X-Cache: BYPASS
+```
+### HTTP2
+ - binary protocal
+ - comporessed headers
+ - persistent connections
+ - multiplex streaming
+ - server push
 
 
 
