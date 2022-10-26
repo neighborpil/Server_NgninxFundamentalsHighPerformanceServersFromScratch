@@ -1910,19 +1910,296 @@ X-Cache: BYPASS
 ```
 #### 테스팅을 위하여 self ssl을 설치
  - 폴더 생성
- ```
- # cd
- # mkdir /etc/nginx/ssl
- ```
+```
+# cd
+# mkdir /etc/nginx/ssl
+```
+  - 테스트용 키 생성
+```
+# openssl req -x509 -days 100 -nodes -newkey rsa:2048 -keyout /etc/nginx/ssl/self.key -out /etc/nginx/ssl/self.crt
+```
+ - 추가정보 입력
+```
+Country Name (2 letter code) [AU]:KR
+State or Province Name (full name) [Some-State]:BUSAN
+Locality Name (eg, city) []:BUSAN
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:neighborpil.com
+Organizational Unit Name (eg, section) []:dev
+Common Name (e.g. server FQDN or YOUR name) []:John Doe
+Email Address []:neighbor@gmail.com
+```
+ - 하고나면 self.crt(인증서), self.key(private key)가 생긴다
+ - nginx ssl 설정을 한다
+```
+user www-data;
 
+pid /var/run/nginx.pid;
 
+worker_processes auto;
 
+events {
+  worker_connections 1024;
+}
 
+http {
 
+  include mime.types;
 
+  server {
 
+    listen 443 ssl; # listen port 설정
+    server_name 13.125.215.175;
 
+    root /sites/demo;
 
+    index index.php index.html;
+
+    ssl_certificate /etc/nginx/ssl/self.crt; # 인증서 
+    ssl_certificate_key /etc/nginx/ssl/self.key; # 키
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+  }
+}
+```
+ - 시스템 재시작
+```
+# systemctl reload nginx
+```
+ - 이상태로는 http1으로 동작한다
+ - http2 옵션 넣기
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server {
+
+    listen 443 ssl http2; # http2 옵션 넣기
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.php index.html;
+
+    ssl_certificate /etc/nginx/ssl/self.crt;
+    ssl_certificate_key /etc/nginx/ssl/self.key;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+  }
+}
+```
+ - 페이지를 다시 호출해보면 프로토콜이 http2로 바뀐다(지원하는 브라우저에서만)
+
+### Server Push
+ - 리눅스에서 테스트 하려면 라이브러리 설치 필요
+```
+# apt-get install nghttp2-client
+```
+ - 테스팅
+    + n : 테스팅임. 데이터를 저장하지 않음
+    + y : self-sertificate ssl를 무시함
+    + s : print the response statistics
+    + a : also requests style,image and etc 
+```
+# nghttp -nysa https://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com/index.html
+***** Statistics *****
+
+Request timing:
+  responseEnd: the  time  when  last  byte of  response  was  received
+               relative to connectEnd
+ requestStart: the time  just before  first byte  of request  was sent
+               relative  to connectEnd.   If  '*' is  shown, this  was
+               pushed by server.
+      process: responseEnd - requestStart
+         code: HTTP status code
+         size: number  of  bytes  received as  response  body  without
+               inflation.
+          URI: request URI
+
+see http://www.w3.org/TR/resource-timing/#processing-model
+
+sorted by 'complete'
+
+id  responseEnd requestStart  process code size request path
+ 13     +4.57ms        +54us   4.51ms  200   4K /index.html
+ 15     +6.92ms      +6.09ms    829us  200  980 /style.css
+ 17     +9.09ms      +6.09ms   3.00ms  200  12K /thumb.png
+```
+ - html요청이 왔을때 style.css, thumb.png를 푸시하도록 수정
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server {
+
+    listen 443 ssl http2;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.php index.html;
+
+    ssl_certificate /etc/nginx/ssl/self.crt;
+    ssl_certificate_key /etc/nginx/ssl/self.key;
+
+    location = /index.html { # html 요청이 오면
+            http2_push /style.css; # css 푸쉬
+            http2_push /thumb.png; # png 푸쉬
+    }
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+  }
+}
+```
+
+## SSL
+ - 설정 초기화
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server {
+
+    listen 443 ssl http2;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.html;
+
+    ssl_certificate /etc/nginx/ssl/self.crt;
+    ssl_certificate_key /etc/nginx/ssl/self.key;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+  }
+}
+```
+ - 80포트 443으로 리다이렉트 하기
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server {
+          listen 80;
+          server_name 13.125.215.175;
+          return 301 https://$host$request_uri;
+  }
+
+  server {
+
+    listen 443 ssl http2;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.html;
+
+    ssl_certificate /etc/nginx/ssl/self.crt;
+    ssl_certificate_key /etc/nginx/ssl/self.key;
+
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+  }
+}
+```
+ - 확인
+```
+# curl -Ik http://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com/index.html
+HTTP/1.1 301 Moved Permanently # 
+Server: nginx/1.23.1
+Date: Wed, 26 Oct 2022 04:31:07 GMT
+Content-Type: text/html
+Content-Length: 169
+Connection: keep-alive
+Location: https://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com/index.html
+```
 
 
 
