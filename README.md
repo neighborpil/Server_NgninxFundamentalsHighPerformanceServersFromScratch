@@ -1879,6 +1879,53 @@ X-Cache: BYPASS
  - multiplex streaming
  - server push
 
+#### HTTP2 설치
+ - 현재 설치된 설정 확인
+```
+# nginx -V
+```
+ - http2 버전 모듈 확인
+```
+# ./configure --help | grep http_v2
+```
+ - 설정 변경
+```
+# ./configure --sbin-path=/usr/bin/nginx --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --with-pcre --pid-path=/var/run/nginx.pid --with-http_ssl_module --with-http_image_filter_module=dynamic --with-http_v2_module
+```
+ - 컴파일
+```
+# make 
+```
+ - 인스톨
+```
+# make install
+```
+ - 재시작
+```
+# systemctl restart nginx
+```
+ - 확인
+```
+# systemctl status nginx
+```
+#### 테스팅을 위하여 self ssl을 설치
+ - 폴더 생성
+ ```
+ # cd
+ # mkdir /etc/nginx/ssl
+ ```
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
