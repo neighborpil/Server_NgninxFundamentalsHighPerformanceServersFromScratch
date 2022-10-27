@@ -2200,18 +2200,393 @@ Content-Length: 169
 Connection: keep-alive
 Location: https://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com/index.html
 ```
+ - cipher 설정
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server {
+          listen 80;
+          server_name 13.125.215.175;
+          return 301 https://$host$request_uri;
+  }
+
+  server {
+
+    listen 443 ssl http2;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.html;
+
+    ssl_certificate /etc/nginx/ssl/self.crt;
+    ssl_certificate_key /etc/nginx/ssl/self.key;
+
+    # Disable SSL
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2; # ssl을 오래되었다. 그래서 tls로 바꿔줌
+
+    # Optimize cipher suits
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers ECDH+AESGCM:ECDH+AES256:ECDH+AES128:DH+3DES:!ADH:!AECDH:!MD5; # 서버 설정당시의 최신버전으로 맞춰주면 된다
+
+    # Enalbe DH Params (Diffie Helmond Key Exchange)
+    ssl_dhparam /etc/nginx/ssl/dhparam.pem;
 
 
 
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+  }
+}
+
+```
+ - dhparam.pem 키 만들기
+    + openssl로 cert를 만들때 만들었던 암호화(rsa 2048)을 그대로 사용해야 한다
+```
+# openssl dhparam -out /etc/nginx/ssl/dhparam.pem 2048
+```
+ - 시스템 재시작
+```
+# systemctl reload nginx
+```
+ - 테스트
+```
+# curl -Ik http://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com
+```
+ - 추가 설정
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server {
+          listen 80;
+          server_name 13.125.215.175;
+          return 301 https://$host$request_uri;
+  }
+
+  server {
+
+    listen 443 ssl http2;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.html;
+
+    ssl_certificate /etc/nginx/ssl/self.crt;
+    ssl_certificate_key /etc/nginx/ssl/self.key;
+
+    # Disable SSL
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+
+    # Optimize cipher suits
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers ECDH+AESGCM:ECDH+AES256:ECDH+AES128:DH+3DES:!ADH:!AECDH:!MD5;
+
+    # Enalbe DH Params (Diffie Helmond Key Exchange)
+    ssl_dhparam /etc/nginx/ssl/dhparam.pem;
+
+    # Enable HSTS
+    add_header Strict-Transport-Security "max-age=31536000" always; # https 접속 브라우저 강제
+
+    # SSL session
+    ssl_session_cache shared:SSL:40m; # ssl 캐싱
+    ssl_session_timeout 4h; # 타임아웃
+    ssl_session_tickets on; # 서버발행 티켓이라 신뢰 가능
 
 
+    location / {
+      try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+  }
+}
+
+```
+ - 접속 테스트
+```
+# curl -Ik https://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com
+
+HTTP/2 200 
+server: nginx/1.23.1
+date: Thu, 27 Oct 2022 00:15:46 GMT
+content-type: text/html
+content-length: 4490
+last-modified: Sat, 15 Oct 2022 00:20:13 GMT
+etag: "6349fcbd-118a"
+strict-transport-security: max-age=31536000
+accept-ranges: bytes
+```
+### Rate Limiting
+ - ddos 공격등 접속 방어
+ - 테스팅 위해 siege라는 새로운 툴 설치 필요
+```
+# apt-get install siege
+```
+ - brute force attack
+    + -v: verbose
+    + -r: repeat
+    + -c: concurrent
+ - 10번 공격
+```
+# siege -v -r 2 -c 5 https://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com/thumb.png
+
+{	"transactions":			          10,
+	"availability":			      100.00,
+	"elapsed_time":			        0.05,
+	"data_transferred":		        0.12,
+	"response_time":		        0.02,
+	"transaction_rate":		      200.00,
+	"throughput":			        2.41,
+	"concurrency":			        4.80,
+	"successful_transactions":	          10,
+	"failed_transactions":		           0,
+	"longest_transaction":		        0.04,
+	"shortest_transaction":		        0.01
+}
+
+```
+ - 설정: 접속제한
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  # Define limit zone
+  # limit_req_zone $server_name;
+  # limit_req_zone $binary_remote_addr;
+  limit_req_zone $request_uri zone=MYZONE:10m rate=60r/m; # 분당 60 request로 제한한다. 즉 초당 한번만 요청가능 나머지는 리젝트(214) 이렇게 하면 접속 spike를 막아준다
+
+  server {
+          listen 80;
+          server_name 13.125.215.175;
+          return 301 https://$host$request_uri;
+  }
+
+  server {
+
+    listen 443 ssl http2;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.html;
+
+    ssl_certificate /etc/nginx/ssl/self.crt;
+    ssl_certificate_key /etc/nginx/ssl/self.key;
+
+    # Disable SSL
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+
+    # Optimize cipher suits
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers ECDH+AESGCM:ECDH+AES256:ECDH+AES128:DH+3DES:!ADH:!AECDH:!MD5;
+
+    # Enalbe DH Params (Diffie Helmond Key Exchange)
+    ssl_dhparam /etc/nginx/ssl/dhparam.pem;
+
+    # Enable HSTS
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    # SSL session
+    ssl_session_cache shared:SSL:40m;
+    ssl_session_timeout 4h;
+    ssl_session_tickets on;
 
 
+    location / {
+        limit_req zone=MYZONE; # 존 
+        try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+  }
+}
+
+```
+ - 테스트
+```
+root@ip-172-31-7-40:/home/ubuntu# siege -v -r 2 -c 5 https://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com/thumb.png
+
+{	"transactions":			           1, # 한번만 
+	"availability":			       10.00,
+	"elapsed_time":			        0.05,
+	"data_transferred":		        0.01,
+	"response_time":		        0.23,
+	"transaction_rate":		       20.00,
+	"throughput":			        0.27,
+	"concurrency":			        4.60,
+	"successful_transactions":	           1,
+	"failed_transactions":		           9,
+	"longest_transaction":		        0.03,
+	"shortest_transaction":		        0.02
+}
 
 
+```
+
+ - burst 추가: burst가 없으면 1회 요청 이외에 즉시 에러를 띄우지만, burst를 넣어주면 1초 리밋마다 리턴
+    + burst에 숫자가 있는 이유는 1+5회 요청까지는 1초 리밋이 지날때마다 리터하지만, 1+5회를 넘어가는 요청에 대해서는 에러를 띄운다
+    + burst뒤에 nodelay를 넣어주면 1+5회까지 빠르게 
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  # Define limit zone
+  # limit_req_zone $server_name;
+  # limit_req_zone $binary_remote_addr;
+  limit_req_zone $request_uri zone=MYZONE:10m rate=60r/m;
+  # limit_req_zone $request_uri zone=MYZONE:10m rate=60r/m burst=5; # 여기 적어도 된다
+
+  server {
+          listen 80;
+          server_name 13.125.215.175;
+          return 301 https://$host$request_uri;
+  }
+
+  server {
+
+    listen 443 ssl http2;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.html;
+
+    ssl_certificate /etc/nginx/ssl/self.crt;
+    ssl_certificate_key /etc/nginx/ssl/self.key;
+
+    # Disable SSL
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+
+    # Optimize cipher suits
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers ECDH+AESGCM:ECDH+AES256:ECDH+AES128:DH+3DES:!ADH:!AECDH:!MD5;
+
+    # Enalbe DH Params (Diffie Helmond Key Exchange)
+    ssl_dhparam /etc/nginx/ssl/dhparam.pem;
+
+    # Enable HSTS
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    # SSL session
+    ssl_session_cache shared:SSL:40m;
+    ssl_session_timeout 4h;
+    ssl_session_tickets on;
 
 
+    location / {
+        limit_req zone=MYZONE burst=5 nodelay; # 1r/s + 5회만큼 허용
+        try_files $uri $uri/ =404;
+    }
 
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+  }
+}
+
+```
+ - 재시작 후 테스트
+```
+# siege -v -r 1 -c 6 https://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com/thumb.png
+
+{	"transactions":			           6,
+	"availability":			      100.00,
+	"elapsed_time":			        0.04,
+	"data_transferred":		        0.07,
+	"response_time":		        0.02,
+	"transaction_rate":		      150.00,
+	"throughput":			        1.81,
+	"concurrency":			        3.50,
+	"successful_transactions":	           6,
+	"failed_transactions":		           0,
+	"longest_transaction":		        0.04,
+	"shortest_transaction":		        0.01
+}
+ubuntu# siege -v -r 1 -c 6 https://ec2-13-125-215-175.ap-northeast-2.compute.amazonaws.com/thumb.png
+
+{	"transactions":			           2,
+	"availability":			       33.33,
+	"elapsed_time":			        0.03,
+	"data_transferred":		        0.02,
+	"response_time":		        0.07,
+	"transaction_rate":		       66.67,
+	"throughput":			        0.83,
+	"concurrency":			        4.67,
+	"successful_transactions":	           2,
+	"failed_transactions":		           4,
+	"longest_transaction":		        0.03,
+	"shortest_transaction":		        0.01
+}
+
+```
 
 
 
