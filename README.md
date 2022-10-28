@@ -2708,4 +2708,106 @@ http {
 ```
 # nginx -v # 버전확인
 ```
-#### http request header에서  
+#### http request header에서 nginx 버전 지우기
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server_tokens off; # 이 부분을 추가해주면 된다
+
+  ...
+}
+```
+ - 시스템 재시작
+```
+# systemctl reload nginx
+```
+ - curl로 사라졌는지 확인
+```
+# curl -Ik https://13.125.215.175
+HTTP/2 200 
+server: nginx # 여기에 버전이 사라지고 nginx만 나와야 한다
+date: Fri, 28 Oct 2022 03:57:44 GMT
+content-type: text/html
+content-length: 4490
+last-modified: Sat, 15 Oct 2022 00:20:13 GMT
+etag: "6349fcbd-118a"
+strict-transport-security: max-age=31536000
+accept-ranges: bytes
+```
+
+#### X frame 옵션 적용
+ - 악의적인 사이트에서 내 사이트를 iframe으로 감싸서 진짜 사이트인척 할 수 있다.
+ - 따라서 브라우저에게 iframe을 사용하지 말라고 헤더에 적어주는 옵션 추가가 필요하다
+ - 같은 origin의 사이트만 가능하도록 허용("SAMEORIGIN")
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server_tokens off;
+
+  server {
+          listen 80;
+          server_name 13.125.215.175;
+          return 301 https://$host$request_uri;
+  }
+
+  server {
+
+    listen 443 ssl http2;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.html;
+
+    add_header X-Frame-Options "SAMEORIGIN"; # 이 부분에서 적용된다
+    add_header X-XSS-Protection "1; mode=block"; # cross-site scripting 이 발견되면 로딩 금지하라
+
+    ssl_certificate /etc/nginx/ssl/self.crt;
+    ssl_certificate_key /etc/nginx/ssl/self.key;
+
+    # Disable SSL
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+
+  ...
+}
+```
+ - 안쓰는 모듈은 취약점이 있기 때문에 삭제
+    + ./configure --help옵션을 보면 --without으로 시작하는 것들이 있다.
+    + 이것들은 기본모듈로 깔리는 애들인데 안쓰면 옵션 주면된다
+```
+# ./configure --help | grep without
+```
+ - autoindex 모듈 삭제
+```
+# ./configure --without-http_autoindex_module --sbin-path=/usr/bin/nginx --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --with-pcre --pid-path=/var/run/nginx.pid --with-http_ssl_module --with-http_image_filter_module=dynamic --with-http_v2_module
+```
+ - 빌드 및 설치, 실행
+```
+# make
+# make install
+# systemctl start nginx
+```
