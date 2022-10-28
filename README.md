@@ -2629,3 +2629,83 @@ location / {
 ![image](https://user-images.githubusercontent.com/22423285/198419504-b0482b18-256d-45d2-b253-2034e9337976.png)
 
 
+### Hardening Nginx
+ - remove few setting to focus on
+```
+user www-data;
+
+pid /var/run/nginx.pid;
+
+worker_processes auto;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  include mime.types;
+
+  server {
+          listen 80;
+          server_name 13.125.215.175;
+          return 301 https://$host$request_uri;
+  }
+
+  server {
+
+    listen 443 ssl http2;
+    server_name 13.125.215.175;
+
+    root /sites/demo;
+
+    index index.html;
+
+    ssl_certificate /etc/nginx/ssl/self.crt;
+    ssl_certificate_key /etc/nginx/ssl/self.key;
+
+    # Disable SSL
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+
+    # Optimize cipher suits
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers ECDH+AESGCM:ECDH+AES256:ECDH+AES128:DH+3DES:!ADH:!AECDH:!MD5;
+
+    # Enalbe DH Params (Diffie Helmond Key Exchange)
+    ssl_dhparam /etc/nginx/ssl/dhparam.pem;
+
+    # Enable HSTS
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    # SSL session
+    ssl_session_cache shared:SSL:40m;
+    ssl_session_timeout 4h;
+    ssl_session_tickets on;
+
+
+    location / {
+        limit_req zone=MYZONE burst=5 nodelay;
+        try_files $uri $uri/ =404;
+    }
+
+    location ~\.php$ {
+      # Pass php requests to the php-fpm service (fastcgi)
+      include fastcgi.conf;
+      fastcgi_pass unix:/run/php/php8.1-fpm.sock;
+    }
+
+  }
+}
+```
+ - 취약점 보강위해 업데이트 한다
+```
+# apt-get update
+# apt-get upgrade
+```
+ - nginx 버전업 할것 있으면 버전업
+    + http request 헤더에 보면 nginx 버전이 나온다.
+    + 취약점이 있는 버전이면 이걸로 공격한다
+```
+# nginx -v # 버전확인
+```
+#### http request header에서  
