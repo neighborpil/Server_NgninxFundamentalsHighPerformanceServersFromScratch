@@ -2588,6 +2588,44 @@ ubuntu# siege -v -r 1 -c 6 https://ec2-13-125-215-175.ap-northeast-2.compute.ama
 
 ```
 
+### Basic Auth
+ - ./htpassword파일 만들어야 함
+ - 라이브러리 설치 필요
+    + ubuntu
+```
+# apt-get install apache2-utils
+```
+    + centos
+```
+# yum install httpd-tools
+```
+ - 파일 생성
+```
+# htpasswd -c /etc/nginx/.htpasswd user
+New password: 
+Re-type new password: 
+Adding password for user user1
+```
+ - 파일 확인
+```
+# cat /etc/nginx/.htpasswd 
+user1:$apr1$B9I61G3o$U8USA2sM5YGhPRiNubQlm/
+```
+ - 환경설정
+```
+location / {
+        auth_basic "Secure Area"; # basic auth 설정
+        auth_basic_user_file /etc/nginx/.htpasswd; # 아디/패스워드 있는 곳
+        limit_req zone=MYZONE burst=5 nodelay;
+        try_files $uri $uri/ =404;
+    }
 
+```
+ - 시스템 재시작
+```
+# systemctl reload nginx
+```
+ - 웹페이지 접속하면 아디/비번 뜸
+![image](https://user-images.githubusercontent.com/22423285/198419504-b0482b18-256d-45d2-b253-2034e9337976.png)
 
 
