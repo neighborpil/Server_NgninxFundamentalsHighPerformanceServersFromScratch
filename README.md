@@ -2811,3 +2811,14 @@ http {
 # make install
 # systemctl start nginx
 ```
+
+### Encrypt SSL 
+ - ssl을 무료로 등록하고 자동 업데이트 하게 해준다
+ - certbot.eff.org
+ - 홈페이지에 접속해서 서버종류랑 OS 버전 타입입력
+ ![image](https://user-images.githubusercontent.com/22423285/198908650-b1443235-4bea-448f-a35b-075c038a7f54.png)
+ - 설치
+    + 해당 os에 맞춘 설정에 따라 설치하면 된다
+
+
+# ./configure --help | grep without
