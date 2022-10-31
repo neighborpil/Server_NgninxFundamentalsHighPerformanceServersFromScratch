@@ -2822,3 +2822,15 @@ http {
 
 
 # ./configure --help | grep without
+
+
+### certificate renual
+크론으로 리뉴얼
+```
+# crontab -e
+
+@daily certbot renew
+
+# crontab -l # check the job that I wrote
+
+```
