@@ -2961,4 +2961,108 @@ http {
 ```
  - upstream 모듈 설정
     + https://nginx.org/en/docs/http/ngx_http_upstream_module.html
- 
+    + 서버를 묶어준다
+ - 서버를 묶어서 설정한다
+```
+events {}
+
+http {
+
+        upstream php_servers {
+                server localhost:10001;
+                server localhost:10002;
+                server localhost:10003;
+        }
+
+        server {
+                listen 8888;
+
+                location / {
+                        proxy_pass http://php_servers;
+                }
+        }
+
+}
+
+```
+ - 다시 nginx서버를 호출하면 로드밸런싱 해준다.
+```
+root@ip-172-31-7-40:/etc/nginx# while sleep 0.5; do curl http://localhost:8888; done
+PHP Server1
+PHP Server2
+PHP Server3
+PHP Server1
+PHP Server2
+PHP Server3
+PHP Server1
+PHP Server2
+PHP Server3
+PHP Server1
+PHP Server2
+```
+ - 서버가 몇개가 죽었다 다시 살아나도 알아서 체크해서 로드밸런싱 해준다. RoundRobin방식으로
+ - sticky session or ip hashing 설정하는 법 각 서버마다 세션 공유
+```
+events {}
+
+http {
+
+        upstream php_servers {
+                ip_hash;
+                server localhost:10001;
+                server localhost:10002;
+                server localhost:10003;
+        }
+
+        server {
+                listen 8888;
+
+                location / {
+                        proxy_pass http://php_servers;
+                }
+        }
+
+}
+```
+
+ - 다시한번 while루프르 하더라도 요청 ip가 같기 때문에 해당 서버로만 요청을 보낸다. 이로서 세션 유지 가능
+    + 만약 아래에서 서버3가 죽으면 다른 서버로 할당된다
+    + 서버3이 다시살아나면 서버3으로 할당된다
+```
+root@ip-172-31-7-40:/etc/nginx# while sleep 0.5; do curl http://localhost:8888; done
+PHP Server3
+PHP Server3
+PHP Server3
+PHP Server3
+
+```
+ - 순서대로가 아니라 현재 작업중으로 응답을 하지 못하는 서버가 있으면 놀고 있는 서버로 응답함
+```
+events {}
+
+http {
+
+        upstream php_servers {
+                least_con;
+                server localhost:10001;
+                server localhost:10002;
+                server localhost:10003;
+        }
+
+        server {
+                listen 8888;
+
+                location / {
+                        proxy_pass http://php_servers;
+                }
+        }
+
+}
+```
+
+## Documentations
+ - http://nginx.org/en/docs
+ - common fitfalls
+    + https://www.nginx.com/resources/wiki/start/topics/tutorials/config_pitfalls
+ - nginx github repo
+    + https://github.com/fcambus/nginx-resources
