@@ -2834,3 +2834,85 @@ http {
 # crontab -l # check the job that I wrote
 
 ```
+
+
+### Load Balancing
+ - php 서버 하나 더 돌린다
+```
+# php -S localhost:9999 resp.txt
+```
+ - 리버스 프록시 설정
+```
+events {}
+http {
+	server {
+		listen 8888;
+		
+		location / {
+			return 200 " Hello from nginx\n";
+		}
+		
+		location /php {
+                        proxy_pass 'http://localhost:9999/';
+                }
+	}
+}
+```
+ - nginx재시작하면 /php로 오는것은 php로 연결한다
+ 
+#### 리버스 프록시로 헤더를 추가할수 있다
+ - add_header 해당 헤더는 클라이언트에만 추가되는 것이지, 리버스 프록시된 서버에는 전달되지 않는다
+```
+location /php {
+                        add_header proxied nginx;
+                        proxy_pass 'http://localhost:9999/';
+                }
+
+```
+ - 결과
+```
+# curl -I http://localhost:80/php
+HTTP/1.1 200 OK
+Server: nginx/1.23.1
+Date: Tue, 01 Nov 2022 00:19:45 GMT
+Content-Type: text/html; charset=UTF-8
+Connection: keep-alive
+Host: localhost:9999
+X-Powered-By: PHP/8.1.2-1ubuntu2.6
+proxied: nginx # 추가된 헤더
+
+```
+
+ - proxy된 서버에 헤더를 추가하려면 proxy_set_header를 넣어야 한다(nginx.conf)
+```
+                location /php {
+                        proxy_set_header proxied nginx_php;
+                        proxy_pass 'http://localhost:9999/';
+                }
+
+```
+ - php소스 생성
+```
+<?php
+
+var_dump(getallheaders());
+
+?>
+```
+ - 결과
+```
+ubuntu# curl http://localhost:80/php
+array(5) {
+  ["proxied"]=> # 추가된 헤더
+  string(9) "nginx_php"
+  ["Host"]=>
+  string(14) "localhost:9999"
+  ["Connection"]=>
+  string(5) "close"
+  ["User-Agent"]=>
+  string(11) "curl/7.81.0"
+  ["Accept"]=>
+  string(3) "*/*"
+}
+
+```
