@@ -2916,3 +2916,49 @@ array(5) {
 }
 
 ```
+
+## Load Balancer
+ - 파일 s1, s2, s3만들기
+```
+root@ip-172-31-7-40:/sites/test# echo 'PHP Server1' > s1
+root@ip-172-31-7-40:/sites/test# echo 'PHP Server2' > s2
+root@ip-172-31-7-40:/sites/test# echo 'PHP Server3' > s3
+```
+ - 터미널을 만들어가며 php 서버 시작
+```
+# php -S localhost:10001 s1
+# php -S localhost:10002 s2
+# php -S localhost:10003 s3
+```
+ - 체크
+```
+# curl http://localhost:10001
+# curl http://localhost:10002
+# curl http://localhost:10003
+```
+ - 로드 밸런서 파일 생성
+```
+# touch /etc/nginx/load-balancer.conf
+```
+```
+events {}
+
+http {
+        server {
+                listen 8888;
+
+                location / {
+                        proxy_pass 'http://localhost:10001';
+                }
+        }
+
+}
+```
+
+ - 0.5초마다 호출하기
+```
+# while sleep 0.5; do curl http://localhost:8888; done
+```
+ - upstream 모듈 설정
+    + https://nginx.org/en/docs/http/ngx_http_upstream_module.html
+ 
